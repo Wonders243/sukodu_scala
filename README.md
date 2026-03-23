@@ -151,7 +151,7 @@ Les contributions sont les bienvenues !
 
 ---
 
-### 📌 Règles de contribution
+### Règles de contribution
 
 * Respecter la structure du projet
 * Documenter les nouvelles fonctionnalités

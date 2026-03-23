@@ -1,6 +1,6 @@
 .bloop
 .metals
-target
+target/
 .scala-build
 project
 .vscode
