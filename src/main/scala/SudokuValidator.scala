@@ -1,7 +1,13 @@
 object SudokuValidator {
 
-  /**
-   * Vérifie si un chiffre peut être placé (contraintes immédiates uniquement)
+  /* 
+   * Vérifie si un nombre peut être placé dans une cellule donnée sans violer les règles du Sudoku.
+   * Cette méthode est utilisée pour valider les mouvements de l'utilisateur et pour trouver les candidats possibles lors de la génération et de la résolution des puzzles.
+   * @param board Le plateau de Sudoku
+   * @param row La ligne de la cellule
+   * @param col La colonne de la cellule
+   * @param num Le nombre à vérifier
+   * @return true si le nombre peut être placé, false sinon
    */
   def isValid(board: SudokuBoard, row: Int, col: Int, num: Int): Boolean = {
     // Vérifier la ligne
@@ -26,10 +32,22 @@ object SudokuValidator {
     true
   }
 
+  /* 
+   * Vérifie si le plateau de Sudoku a une solution unique.
+   * Cette méthode est utilisée pour garantir que les puzzles générés ont une solution unique, ce qui est une caractéristique importante pour un bon puzzle de Sudoku.
+   * @param board Le plateau de Sudoku à vérifier
+   * @return true si le plateau a une solution unique, false sinon
+   */
   def Unicite(board: SudokuBoard): Boolean = {
     
     var solutions = 0
    
+    /* 
+     * Fonction récursive pour compter le nombre de solutions d'un plateau de Sudoku.
+     * Cette fonction utilise un algorithme de backtracking similaire à celui utilisé pour résoudre les puzzles, mais elle continue à chercher des solutions même après en avoir trouvé une, afin de déterminer s'il y en a plus d'une.
+     * @param board Le plateau de Sudoku à vérifier
+     * @return true si le nombre de solutions trouvées est inférieur à 2, false sinon
+     */
     def recursiveUnicite(board: SudokuBoard): Boolean = {
       
       if (solutions >= 2) {
@@ -49,14 +67,14 @@ object SudokuValidator {
 
           for (num <- candidates) {
 
-            board.grid(row)(col) = num
+            board.set(row, col, num)
 
             if (!recursiveUnicite(board)) {
-              board.grid(row)(col) = 0
+              board.set(row, col, 0)
               return false
             }
 
-            board.grid(row)(col) = 0
+            board.set(row, col, 0)
           }
 
           true
@@ -68,75 +86,27 @@ object SudokuValidator {
     solutions == 1
   }
 
-  /**
-   * Vérifie toute la grille et retourne les erreurs
+  /* 
+   * Valide un plateau de Sudoku en vérifiant chaque cellule pour les conflits potentiels.
+   * Cette méthode est utilisée pour fournir un retour d'information à l'utilisateur sur les erreurs dans son plateau, en mettant en évidence les cellules qui contiennent des conflits.
+   * @param board Le plateau de Sudoku à valider
+   * @return Un tableau 2D de booléens indiquant les cellules en conflit (true) et les cellules valides (false)
    */
   def validateBoard(board: SudokuBoard): Array[Array[Boolean]] = {
     val errors = Array.ofDim[Boolean](9, 9)
     
     for (row <- 0 until 9; col <- 0 until 9) {
-      val num = board.grid(row)(col)
+      val num = board.get(row, col)
       if (num != 0) {
-        board.grid(row)(col) = 0
+        board.set(row, col, 0)
         if (!isValid(board, row, col, num)) {
           errors(row)(col) = true
         }
-        board.grid(row)(col) = num
+        board.set(row, col, num)
       }
     }
     
     errors
   }
 
-def findConflicts(board: SudokuBoard, num: Int): List[(Int, Int)] = {
-
-  val conflicts = scala.collection.mutable.ListBuffer[(Int, Int)]()
-  
-  for (row <- 0 until 9; col <- 0 until 9) {
-    if (board.grid(row)(col) == num) {
-      board.grid(row)(col) = 0
-      if (!isValid(board, row, col, num)) {
-        conflicts += ((row, col))
-      }
-      board.grid(row)(col) = num
-    }
-  }
-  conflicts.toList
-}
-
-def solveInPlace(board: SudokuBoard): Boolean = {
-    // Trouver la première case vide
-    var row = -1
-    var col = -1
-    var found = false
-    
-    for (r <- 0 until 9 if !found) {
-      for (c <- 0 until 9 if !found) {
-        if (board.grid(r)(c) == 0) {
-          row = r
-          col = c
-          found = true
-        }
-      }
-    }
-    
-    // Si plus de case vide, on a trouvé une solution
-    if (!found) return true
-    
-    // Essayer chaque chiffre possible
-    for (num <- 1 to 9) {
-      if (isValid(board, row, col, num)) {
-        board.grid(row)(col) = num
-        
-        if (solveInPlace(board)) {
-          return true
-        }
-        
-        board.grid(row)(col) = 0
-      }
-    }
-    
-    false
-  }
-  
 }

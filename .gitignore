@@ -4,3 +4,7 @@ target
 .scala-build
 project
 .vscode
+.idea
+*.iml
+*.class
+*.log

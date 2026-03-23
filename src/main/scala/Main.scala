@@ -9,6 +9,7 @@ import java.time.Instant
 import java.io._
 import scala.collection.mutable
 import scala.util.Random
+import scalafx.scene.input.KeyCode.B
 
 object Main extends JFXApp3 {
   
@@ -26,15 +27,25 @@ object Main extends JFXApp3 {
   private var errorsLabel: Label = _
   private var timerThread: Thread = _
   private var running = true
+  var updatingBoard = false
   
+  /* 
+   * Démarre l'application.
+    * Initialise la partie et crée l'interface utilisateur.
+   */
   override def start(): Unit = {
     initializeGame()
     createUI()
   }
   
+  /* 
+   * Initialise le jeu.
+   * Génère un puzzle Sudoku et copie le plateau original.
+   */
   private def initializeGame(): Unit = {
 
     SudokuGenerator.generatePuzzle(board, 40)
+    
     for (i <- 0 until 9; j <- 0 until 9) {
       originalBoard.grid(i)(j) = board.grid(i)(j)
     }
@@ -50,8 +61,12 @@ object Main extends JFXApp3 {
     // Démarrer le timer
     startTimer()
   }
-  
+  /*
+    * Démarre un thread qui met à jour le label du temps toutes les secondes.
+    * Le thread s'arrête lorsque la partie est terminée ou que l'application est fermée. 
+  */
   private def startTimer(): Unit = {
+
     timerThread = new Thread {
 
       override def run(): Unit = {
@@ -75,6 +90,10 @@ object Main extends JFXApp3 {
     timerThread.start()
   }
   
+  /* 
+   * Crée l'interface utilisateur principale.
+   * Comprend la grille de Sudoku, les boutons de contrôle, les labels d'information et le menu.
+   */
   private def createUI(): Unit = {
 
     textFields = Array.ofDim[TextField](9, 9)
@@ -116,6 +135,11 @@ object Main extends JFXApp3 {
     }
   }
   
+  /* 
+    * Crée le panneau de grille principal.
+    * Chaque cellule est un TextField avec des styles pour les blocs 3x3.
+    * Les cases pré-remplies sont non éditables et ont un style différent. 
+  */
   private def createGridPane(): GridPane = {
     val gridPane = new GridPane() {
       hgap = 2
@@ -134,6 +158,14 @@ object Main extends JFXApp3 {
     gridPane
   }
   
+  /* 
+   * Crée un TextField pour une cellule donnée, avec des styles et des gestionnaires d'événements.
+   * Les cases pré-remplies sont non éditables et ont un style différent. Les changements de texte sont validés et les erreurs sont surlignées.
+   * Lorsque le TextField perd le focus, le style est réinitialisé.   
+   * @param row La ligne de la cellule
+   * @param col La colonne de la cellule
+   * @return Le TextField créé pour la cellule spécifiée
+   */
   private def createTextField(row: Int, col: Int): TextField = {
   new TextField {
     prefWidth = 60.0
@@ -145,17 +177,17 @@ object Main extends JFXApp3 {
     style = createBorderStyle(row, col)
     
     // Valeur initiale
-    text = if (board.grid(row)(col) == 0) "" else board.grid(row)(col).toString
+    text = if (board.get(row, col) == 0) "" else board.get(row, col).toString
     
     // Les cases pré-remplies ne sont pas modifiables
-    editable = board.grid(row)(col) == 0
+    editable = board.get(row, col) == 0
     if (!editable.value) { 
-      style = style.value + " -fx-background-color: #f0f0f0;"
+      style = style.value + " -fx-background-color: #ffffff;"
     }
     
     // Gestionnaire d'événements
     text.onChange { (_, _, newValue) =>
-      handleTextFieldChange(row, col, newValue)
+      if (!updatingBoard) handleTextFieldChange(row, col, newValue)
     }
     
     // Focus perdu : nettoyer le style
@@ -163,41 +195,62 @@ object Main extends JFXApp3 {
       if (!newFocus) {
         style = createBorderStyle(row, col)
         if (!editable.value) {  // CORRECTION : ajouter .value
-          style = style.value + " -fx-background-color: #f0f0f0;"
+          style = style.value + " -fx-background-color: #ffffff;"
         }
       }
     }
   }
   }
   
+  /* 
+   * Crée le style de bordure pour une cellule donnée, en fonction de sa position dans la grille.
+   *
+   * @param row La ligne de la cellule
+   * @param col La colonne de la cellule
+   * @return La chaîne de style pour la bordure
+   */
   private def createBorderStyle(row: Int, col: Int): String = {
-    var style = "-fx-border-width: 1; -fx-border-color: black;"
-    
-    // Bordures épaisses entre les blocs
-    if (col % 3 == 2 && col != 8) style += " -fx-border-width: 1 3 1 1;"
-    if (col % 3 == 0 && col != 0) style += " -fx-border-width: 1 1 1 3;"
-    if (row % 3 == 2 && row != 8) style += " -fx-border-width: 1 1 3 1;"
-    if (row % 3 == 0 && row != 0) style += " -fx-border-width: 3 1 1 1;"
-    
-    style
+
+    var top = 1
+    var right = 1
+    var bottom = 1
+    var left = 1
+
+    // Bordures épaisses entre blocs 3x3
+    if (col % 3 == 2 && col != 8) right = 3
+    if (col % 3 == 0 && col != 0) left = 3
+    if (row % 3 == 2 && row != 8) bottom = 3
+    if (row % 3 == 0 && row != 0) top = 3
+
+    s"-fx-border-color: black; -fx-border-width: $top $right $bottom $left;"
   }
   
+  /* 
+   * Gère les changements de texte pour un TextField donné.
+   * Valide les entrées, met à jour le plateau de jeu et le style en conséquence, et gère les erreurs.
+   * 
+   * @param row La ligne de la cellule
+   * @param col La colonne de la cellule
+   * @param newValue Le nouveau texte
+   */
   private def handleTextFieldChange(row: Int, col: Int, newValue: String): Unit = {
     // Effacer le style
     textFields(row)(col).style = createBorderStyle(row, col)
-    
+  
+    // Valider l'entrée : doit être vide ou un chiffre entre 1 et 9
     if (newValue.nonEmpty && !newValue.matches("[1-9]?")) {
       textFields(row)(col).text = ""
       return
     }
     
+    // Si c'est un chiffre valide, vérifier la validité du mouvement
     if (newValue.matches("[1-9]")) {
       val num = newValue.toInt
-      val previousValue = board.grid(row)(col)
+      val previousValue = board.get(row, col)
       
       if (SudokuValidator.isValid(board, row, col, num)) {
         // Mouvement valide
-        board.grid(row)(col) = num
+        board.set(row, col, num)
         gameState.saveMove(row, col, previousValue)
         
         // Vérifier si la grille est complète
@@ -206,21 +259,25 @@ object Main extends JFXApp3 {
         }
       } else {
         // Erreur
-        textFields(row)(col).style = createBorderStyle(row, col) + " -fx-background-color: #ffcccc;"
+        textFields(row)(col).style = createBorderStyle(row, col) + " -fx-background-color: #fbb3b3;"
         gameState.errors += 1
         errorsLabel.text = s"Erreurs: ${gameState.errors}"
       }
+      
     } else {
       // Effacer la cellule
-      val previousValue = board.grid(row)(col)
+      val previousValue = board.get(row, col)
       if (previousValue != 0) {
-        board.grid(row)(col) = 0
+        board.set(row, col, 0)
         gameState.saveMove(row, col, previousValue)
       }
     }
   }
 
-  private def showAbout(): Unit = {
+  /* 
+   * Affiche les informations à propos du jeu.
+   */
+  private def about(): Unit = {
     new Alert(Alert.AlertType.Information) {
       title = "À propos"
       headerText = "Sudoku Scala"
@@ -242,6 +299,9 @@ object Main extends JFXApp3 {
     }.showAndWait()
   }
   
+  /* 
+   * Crée le panneau de contrôle avec les boutons pour démarrer une nouvelle partie, annuler, vérifier et obtenir de l'aide.
+   */
   private def createControlPanel(): HBox = {
 
     new HBox(10) {
@@ -264,12 +324,15 @@ object Main extends JFXApp3 {
           onAction = _ => validateAll()
         },
         new Button("Aide") {
-          onAction = _ => showHelp()
+          onAction = _ => Help()
         }
       )
     }
   }
   
+  /* 
+   * Crée le panneau d'information avec le temps écoulé, le nombre d'erreurs et le statut du jeu.
+   */
   private def createInfoPanel(): HBox = {
 
     timeLabel = new Label("Temps: 0:00") {
@@ -294,6 +357,9 @@ object Main extends JFXApp3 {
     }
   }
   
+  /* 
+   * Crée la barre de menu avec les options pour gérer les fichiers, les puzzles, l'affichage et l'aide.
+   */
   private def createMenuBar(): MenuBar = {
     new MenuBar {
       menus = Seq(
@@ -339,7 +405,8 @@ object Main extends JFXApp3 {
               onAction = _ => showRules()
             },
             new MenuItem("À propos") {
-              onAction = _ => showAbout()
+              onAction = _ => about
+          ()
             }
           )
         }
@@ -347,6 +414,13 @@ object Main extends JFXApp3 {
     }
   }
   
+  /* 
+   * Démarre une nouvelle partie avec une grille générée aléatoirement selon la difficulté choisie.
+   * Sauvegarde la partie actuelle avant de réinitialiser le plateau et de générer une nouvelle grille.
+   * Met à jour l'affichage et les labels d'information.
+   *
+   * @param difficulty Le nombre de cases pré-remplies (plus le nombre est élevé, plus la partie est facile)
+   */
   private def newGame(difficulty: Int): Unit = {
     
     saveGame() // Sauvegarder la partie actuelle avant de commencer une nouvelle
@@ -372,10 +446,13 @@ object Main extends JFXApp3 {
     statusLabel.text = "Nouvelle partie"
   }
   
+  /* 
+   * Annule le dernier mouvement effectué par le joueur.
+   */
   private def undo(): Unit = {
     gameState.undo() match {
       case Some((row, col, previousValue)) =>
-        board.grid(row)(col) = previousValue
+        board.set(row, col, previousValue)
         updateBoardDisplay()
         statusLabel.text = "Annulation effectuée"
       case None =>
@@ -383,6 +460,9 @@ object Main extends JFXApp3 {
     }
   }
   
+  /* 
+   * Valide toutes les cases du plateau et affiche les erreurs.
+   */
   private def validateAll(): Unit = {
     val errors = SudokuValidator.validateBoard(board)
     var errorCount = 0
@@ -391,7 +471,7 @@ object Main extends JFXApp3 {
       if (errors(row)(col)) {
         textFields(row)(col).style =  (row, col) + " -fx-background-color: #ffcccc;"
         errorCount += 1
-      } else if (board.grid(row)(col) != 0) {
+      } else if (board.get(row, col) != 0) {
         textFields(row)(col).style = createBorderStyle(row, col) + " -fx-background-color: #ccffcc;"
       }
     }
@@ -403,32 +483,45 @@ object Main extends JFXApp3 {
     }
   }
   
-  private def showHelp(): Unit = {
+  // Affiche une boîte de dialogue pour aider le joueur à reveler les occurrences d'un chiffre sur la grille.
+  private def Help(): Unit = {
     val digit = new TextInputDialog() {
       title = "Aide"
-      headerText = "Entrez un chiffre (1-9)"
+      headerText = "Entrez un chiffre compris " +
+        "entre 1 et 9 pour voir toutes ses occurrences sur la grille"
       contentText = "Chiffre:"
     }.showAndWait()
     
     digit.foreach { d =>
       if (d.matches("[1-9]")) {
-        val conflicts = SudokuValidator.findConflicts(board, d.toInt)
-        
         // Réinitialiser les styles
         for (row <- 0 until 9; col <- 0 until 9) {
           textFields(row)(col).style = createBorderStyle(row, col)
         }
         
-        // Surligner les conflits
-        for ((row, col) <- conflicts) {
-          textFields(row)(col).style = createBorderStyle(row, col) + " -fx-background-color: #ffff99;"
+        SudokuGenerator.fillNumber(board, d.toInt) 
+        updatingBoard = true
+        updateBoardDisplay()
+        updatingBoard = false
+
+        // Surligner les occurrences
+        for (row <- 0 until 9; col <- 0 until 9 ) {
+          if (board.get(row, col) == d.toInt) {
+            textFields(row)(col).style = createBorderStyle(row, col) + " -fx-background-color: #c9ef84d6;"
+          }
         }
         
-        statusLabel.text = s"${conflicts.length} conflit(s) pour le chiffre $d"
+        statusLabel.text = s"Cases avec le chiffre $d mises en évidence"
+        
       }
     }
   }
   
+  /* 
+   * Met en évidence les erreurs sur le plateau.
+   * Si enable est true, valide toutes les cases et surligne les erreurs. Sinon, réinitialise les styles.
+   * @param enable Indique si les erreurs doivent être surlignées ou non
+   */
   private def highlightErrors(enable: Boolean): Unit = {
     if (enable) {
       validateAll()
@@ -437,7 +530,13 @@ object Main extends JFXApp3 {
     }
   }
   
+  /* 
+   * Affiche une boîte de dialogue pour permettre au joueur de saisir un chiffre.
+   * Si le chiffre est valide, surligne toutes les occurrences de ce chiffre sur la grille.
+   * Si le chiffre est invalide, ne fait rien.
+   */
   private def showDigitDialog(): Unit = {
+
     val digit = new TextInputDialog() {
       title = "Afficher les cases"
       headerText = "Entrez un chiffre pour voir toutes ses occurrences"
@@ -453,7 +552,7 @@ object Main extends JFXApp3 {
         
         // Surligner les occurrences
         for (row <- 0 until 9; col <- 0 until 9) {
-          if (board.grid(row)(col) == d.toInt) {
+          if (board.get(row, col) == d.toInt) {
             textFields(row)(col).style = createBorderStyle(row, col) + " -fx-background-color: #99ccff;"
           }
         }
@@ -461,6 +560,10 @@ object Main extends JFXApp3 {
     }
   }
   
+  /* 
+   * Affiche une boîte de dialogue de victoire lorsque le joueur complète la grille.
+   * Affiche le temps écoulé et le nombre d'erreurs commises pendant la partie.
+   */
   private def showVictory(): Unit = {
     val elapsed = gameState.getElapsedTime
     val minutes = elapsed.getSeconds / 60
@@ -476,6 +579,7 @@ object Main extends JFXApp3 {
     }.showAndWait()
   }
   
+  // Affiche les règles du jeu dans une boîte de dialogue.
   private def showRules(): Unit = {
     new Alert(Alert.AlertType.Information) {
       title = "Règles du Sudoku"
@@ -493,9 +597,30 @@ object Main extends JFXApp3 {
       """.stripMargin
     }.showAndWait()
   }
-
+  /* 
+   * Sauvegarde la partie en cours.
+   */
   private def saveGame(): Unit = {
 
+    if (board.saved) {
+      val dialog = new Alert(Alert.AlertType.Confirmation) {
+        title = "Sauvegarde"
+        headerText = "Une partie est déjà sauvegardée"
+        contentText = "Voulez-vous écraser la sauvegarde existante ?"
+      }.showAndWait() match {
+
+        case Some(ButtonType.OK) =>
+          try {
+            board.saveToFile(s"src/saves/${board.nameSaved}.txt", "current_game")
+            statusLabel.text = "Sauvegarde mise à jour"
+          } catch {
+            case e: Exception =>
+              statusLabel.text = "Erreur lors de la sauvegarde"
+          }
+        case _ =>
+          statusLabel.text = "Sauvegarde annulée"
+      }
+    } else {
     val dialog = new TextInputDialog("ma_partie") {
       title = "Sauvegarder la partie"
       headerText = "Entrer le nom du fichier"
@@ -526,8 +651,13 @@ object Main extends JFXApp3 {
       case None =>
         statusLabel.text = "Sauvegarde annulée"
     }
+   }
   }
     
+  /* 
+   * Affiche une boîte de dialogue pour permettre au joueur de choisir une sauvegarde à charger.
+   * Charge la partie sélectionnée et met à jour l'affichage et les labels d'information.
+   */
   private def loadGame(): Unit = {
 
     val saveDir = new File("src/saves")
@@ -564,6 +694,8 @@ object Main extends JFXApp3 {
 
           updateBoardDisplay()
           statusLabel.text = "Partie chargée"
+          board.saved = true
+          board.nameSaved = filename
 
         } catch {
           case e: Exception =>
@@ -575,6 +707,12 @@ object Main extends JFXApp3 {
     }
   }
   
+  /* 
+   * Charge un puzzle pré-généré à partir de la liste des puzzles disponibles.
+   * Met à jour le plateau de jeu, l'affichage et les labels d'information en conséquence.
+   *
+   * @param index L'index du puzzle à charger dans la liste des puzzles pré-générés
+   */
   private def loadPreGeneratedPuzzle(index: Int): Unit = {
     if (index >= 0 && index < preGeneratedPuzzles.length) {
       val puzzle = preGeneratedPuzzles(index)
@@ -598,13 +736,19 @@ object Main extends JFXApp3 {
     }
   }
   
+  /* 
+   * Met à jour l'affichage de la grille en fonction de l'état actuel du plateau de jeu.
+   * Les cases pré-remplies sont affichées en gris et ne sont pas éditables. Les cases vides sont affichées comme des TextFields vides.
+   * Les styles des cellules sont mis à jour pour refléter les bordures et les erreurs éventuelles.
+   */
   private def updateBoardDisplay(): Unit = {
+
     for (row <- 0 until 9; col <- 0 until 9) {
       val field = textFields(row)(col)
-      val value = board.grid(row)(col)
+      val value = board.get(row, col)
       
       field.text = if (value == 0) "" else value.toString
-      field.editable = originalBoard.grid(row)(col) == 0
+      field.editable = originalBoard.get(row, col) == 0
       field.style = createBorderStyle(row, col)
       
       if (!field.editable.value) {  // CORRECTION : ajouter .value
