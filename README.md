@@ -11,7 +11,7 @@ Elle permet de générer, jouer, sauvegarder et résoudre des grilles de Sudoku 
 
 *  Génération aléatoire de grilles de Sudoku
 *  Plusieurs niveaux de difficulté (Facile, Moyen, Difficile)
-*  Annulation des coups (Undo)
+*  Annulation des coups
 *  Vérification des erreurs
 *  Aide contextuelle (affichage des chiffres)
 *  Chronomètre en temps réel
@@ -107,17 +107,17 @@ Fonctionnalités :
 
 ##  Améliorations possibles
 
-* Ajout d’un solveur automatique
 * Interface plus avancée (animations, thèmes)
 * Sauvegarde JSON ou base de données
 * Mode multijoueur ou challenge
-* methode ia pour proposer des aides adapté 
+* methode ia pour proposer des aides pertinents
 
 ---
 
 ##  Auteur
 
-Projet réalisé dans le cadre du cours de programmation Scala
+Projet réalisé dans le cadre du cours de programmation concurente encadré par Mr. Azzag
+Master 1 Informatique et Big data
 IED - Université Paris 8
 
 ---
