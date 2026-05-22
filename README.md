@@ -1,4 +1,4 @@
-#  Sudoku Scala - Projet IED
+#  Sudoku Scala - Projet IED Paris 8
 
 ##  Description
 
